@@ -1,0 +1,2 @@
+# The repo is bind-mounted at runtime; nothing is needed in the build context.
+*

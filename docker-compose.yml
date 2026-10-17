@@ -1,0 +1,24 @@
+services:
+  parafashion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: parafashion:latest
+    working_dir: /app
+    volumes:
+      # The repository (build into /app/build == <repo>/build on the host)
+      - .:/app
+      # X11 socket (Linux hosts). Harmless on macOS.
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      CMAKE_GENERATOR: Ninja
+      # Linux: uses your $DISPLAY (run `xhost +local:docker` once first).
+      # macOS (XQuartz): DISPLAY=host.docker.internal:0 docker compose run --rm parafashion
+      DISPLAY: ${DISPLAY:-:0}
+      QT_X11_NO_MITSHM: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    command: ["bash"]
+    stdin_open: true
+    tty: true
