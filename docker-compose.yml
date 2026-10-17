@@ -1,3 +1,18 @@
+# ==============================================================================
+# Parafashion — Docker Compose Configuration
+# ==============================================================================
+# Quick start:
+#   1. Start an interactive shell in the container:
+#      - macOS (XQuartz):  xhost +localhost && docker compose run --rm parafashion
+#      - Linux:            xhost +local:docker && docker compose run --rm parafashion
+#
+#   2. Build & run inside `/app`:
+#      mkdir -p build && cd build
+#      cmake ..
+#      ninja parafashion              # Use `ninja -j1 parafashion` if Docker RAM < 6 GB
+#      ./parafashion ../data/leggins/leggins.ply
+# ==============================================================================
+
 services:
   parafashion:
     build:
@@ -5,20 +20,38 @@ services:
       dockerfile: Dockerfile
     image: parafashion:latest
     working_dir: /app
+
     volumes:
-      # The repository (build into /app/build == <repo>/build on the host)
+      # Bind-mount the repository into `/app` so source changes and `/app/build`
+      # outputs persist directly on the host.
       - .:/app
-      # X11 socket (Linux hosts). Harmless on macOS.
+
+      # Forward the host X11 socket (used on Linux hosts; harmless on macOS).
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
     environment:
+      # --- Locale ---
+      # Required by `std::setlocale(LC_NUMERIC, "en_US.UTF-8")` in apps/parafashion.cpp.
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
+
+      # --- Build System ---
+      # Instructs CMake to generate `build.ninja` by default without `-G Ninja`.
       CMAKE_GENERATOR: Ninja
-      # Linux: uses your $DISPLAY (run `xhost +local:docker` once first).
-      # macOS (XQuartz): DISPLAY=host.docker.internal:0 docker compose run --rm parafashion
-      DISPLAY: ${DISPLAY:-:0}
+
+      # --- Display / X11 Forwarding & OpenGL ---
+      # - DISPLAY: defaults to `host.docker.internal:0` for macOS XQuartz so you
+      #   don't have to pass it on the command line (note: macOS sets $DISPLAY to
+      #   a `/private/tmp/...` launchd socket on the host, so we don't inherit
+      #   ${DISPLAY} directly).
+      # - QT_X11_NO_MITSHM: disables MIT-SHM shared memory extension across container boundary.
+      # - LIBGL_ALWAYS_SOFTWARE: forces Mesa software rendering (llvmpipe) over X11 forwarding.
+      DISPLAY: host.docker.internal:0 # macOS host
+      # DISPLAY: $DISPLAY # Linux host
       QT_X11_NO_MITSHM: "1"
       LIBGL_ALWAYS_SOFTWARE: "1"
+
+    # Keep an interactive terminal session open when running the container.
     command: ["bash"]
     stdin_open: true
     tty: true
