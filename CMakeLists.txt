@@ -66,6 +66,5 @@ add_executable(parafashion ${SRC_VCGLIB} apps/parafashion.cpp ${SRCPARAM})
 target_link_libraries(parafashion ${VCG_UI_LIBS} nlohmann_json woven_param)
 include_directories(include)
 
-add_executable(param apps/param.cpp ${SRCPARAM})
-target_link_libraries(param igl::opengl_glfw igl::core igl::opengl_glfw_imgui)
-target_include_directories(param PUBLIC include/param)
+add_executable(param apps/param.cpp)
+target_link_libraries(param woven_param igl::opengl_glfw igl::core igl::opengl_glfw_imgui)
