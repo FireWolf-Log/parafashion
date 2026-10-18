@@ -292,13 +292,37 @@ public:
         LabelRad.resize(outline2Vec.size());
         Label.resize(outline2Vec.size());
 
-        //get the bounding box
-        vcg::Box2<ScalarType> UVBBox=GetBox(outline2Vec);
-        pp.height=UVBBox.DimY();
-        pp.width=UVBBox.DimX();
+        //get the bounding box covering all outlines AND text labels
+        vcg::Box2<ScalarType> TotalBBox = GetBox(outline2Vec);
+        for (size_t i = 0; i < trText.size(); i++) {
+            for (size_t j = 0; j < trText[i].size(); j++) {
+                float rad = (j < LabelRad[i].size()) ? LabelRad[i][j] : (fontsize * 2.0f);
+                TotalBBox.Add(trText[i][j].tra - vcg::Point2f(rad, rad));
+                TotalBBox.Add(trText[i][j].tra + vcg::Point2f(rad, rad));
+            }
+        }
 
-        std::cout<<"UV Box Dim Y:"<<UVBBox.DimY()<<std::endl;
-        std::cout<<"UV Box Dim X:"<<UVBBox.DimX()<<std::endl;
+        // Add generous margin (padding) around the canvas so patterns and labels are never cut off
+        float margin = std::max(30.0f, (float)(boundSize + fontsize * 3.0f + penwidth * 2.0f));
+
+        // Shift all geometry and labels so they sit cleanly inside the margin:
+        vcg::Point2f shift = vcg::Point2f(margin, margin) - TotalBBox.min;
+        for (size_t i = 0; i < outline2Vec.size(); i++) {
+            for (size_t j = 0; j < outline2Vec[i].size(); j++) {
+                outline2Vec[i][j] += shift;
+            }
+        }
+        for (size_t i = 0; i < trText.size(); i++) {
+            for (size_t j = 0; j < trText[i].size(); j++) {
+                trText[i][j].tra += shift;
+            }
+        }
+
+        pp.width = std::ceil(TotalBBox.DimX() + 2.0f * margin);
+        pp.height = std::ceil(TotalBBox.DimY() + 2.0f * margin);
+
+        std::cout << "SVG Canvas Width: " << pp.width << ", Height: " << pp.height 
+                  << " (Margin: " << margin << ")" << std::endl;
 
 
         std::vector< std::vector< std::vector<Point2f> > > outline2VecVec(outline2Vec.size());

@@ -508,7 +508,14 @@ void DoGenerateSVG(std::string ProjM)
     pathPatch=ProjM+"_patch.svg";
     std::string pathPatchPNG=ProjM;
     pathPatchPNG=ProjM+"_patch.png";
-    float scale=1000;
+    float scale = 1000.0f;
+    float meshDiag = deformed_mesh.bbox.Diag();
+    if (meshDiag > 100.0f)
+        scale = 1.0f; // Mesh is already in millimeters (e.g. dress)
+    else if (meshDiag > 10.0f)
+        scale = 10.0f; // Mesh is in centimeters (e.g. skirt)
+    // otherwise mesh is in meters (scale = 1000.0f to convert to mm)
+
     SvgExporter<TraceMesh>::ExportUVPolyline(deformed_mesh,
                                              pathPatch.c_str(),
                                              pathPatchPNG.c_str(),
