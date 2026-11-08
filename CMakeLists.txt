@@ -14,9 +14,11 @@ find_package(GLUT REQUIRED)
 find_package(Qt5 COMPONENTS Widgets OpenGL Svg REQUIRED) # redundant with libigl ?
 
 # glew
-# see https://github.com/ArthurSonzogni/OpenGL_CMake_Skeleton
 add_definitions(-DGLEW_STATIC)
-add_subdirectory(lib/glew-cmake EXCLUDE_FROM_ALL)
+add_library(libglew_static STATIC lib/glew-cmake/src/glew.c)
+target_include_directories(libglew_static PUBLIC lib/glew-cmake/include)
+target_compile_definitions(libglew_static PUBLIC GLEW_STATIC GLEW_NO_GLU)
+include_directories(lib/glew-cmake/include)
 
 if (NOT TARGET igl::core)
   add_subdirectory(lib/libigl)
