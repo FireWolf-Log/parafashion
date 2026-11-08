@@ -45,6 +45,7 @@
 #include <tracing/GL_mesh_drawing.h>
 #include <tracing/mesh_type.h>
 #include "myglwidget.h"
+#include "texture_gl_utils.h"
 #include <wrap/qt/trackball.h>
 #include <wrap/qt/anttweakbarMapper.h>
 #include <wrap/gl/gl_field.h>
@@ -919,15 +920,13 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     vcg::tri::UpdateColor<TraceMesh>::PerFaceConstant(reference_mesh,vcg::Color4b(255,185,15,255));
 
     //see if there is the texture
-    std::string pathTxt=pathDef;
-    pathTxt.erase(pathTxt.find_last_of("/"));
-    pathTxt.append("/txt.png");
+    std::string pathTxt=parafashion_tex::resolveMeshTexturePath(pathDef);
     //    texture = LoadDDS(textureFile);
     //	Q_ASSERT(texture != nullptr);
-    txt_image=QImage(pathTxt.c_str());
+    txt_image=pathTxt.empty() ? QImage() : QImage(QString::fromStdString(pathTxt));
     HasTxt=(!txt_image.isNull());
     if (HasTxt)
-        std::cout<<"Texture Loaded "<<std::endl;
+        std::cout<<"Texture Loaded "<<pathTxt<<std::endl;
 
     hasFrames=false;
     hasDoubleClick=false;
@@ -952,7 +951,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
 }
 
 
-GLuint texture_dress;
+GLuint texture_dress=0;
 
 void MyGLWidget::initializeGL ()
 {
@@ -978,19 +977,9 @@ void MyGLWidget::initializeGL ()
         //        glActiveTexture(GL_TEXTURE0);
         //        //glBindTexture(GL_TEXTURE_2D, texture_dress);
 
-        glGenTextures( 1, & texture_dress );
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture( GL_TEXTURE_2D, texture_dress );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         //load texture at level i
         //txt_image.
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, txt_image.width(), txt_image.height(), 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, txt_image.constBits());
-        glDisable(GL_TEXTURE_2D);
-        glBindTexture( GL_TEXTURE_2D, 0 );
+        parafashion_tex::uploadQImageTexture2D(texture_dress, txt_image);
     }
 }
 
@@ -1018,7 +1007,7 @@ static void GLDrawSVGLayout(size_t sizeU,
     glDisable(GL_LIGHTING);
     glDisable(GL_LIGHT0);
 
-    if (TxtIndex>=0)
+    if (TxtIndex>0)
     {
         glActiveTexture(GL_TEXTURE0);
         glEnable(GL_TEXTURE_2D);
@@ -1046,20 +1035,9 @@ void MyGLWidget::paintGL ()
     UpdateSelectedFrameIfneeded();
     if (has_to_update_layout)
     {
-        glGenTextures( 1, & layoutTxtIdx );
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture( GL_TEXTURE_2D, layoutTxtIdx );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
         //load texture at level i
         //txt_image.
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SVGTxt.width(), SVGTxt.height(), 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, SVGTxt.constBits());
-        glDisable(GL_TEXTURE_2D);
-        glBindTexture( GL_TEXTURE_2D, 0 );
+        parafashion_tex::uploadQImageTexture2D(layoutTxtIdx, SVGTxt);
         has_to_update_layout=false;
         //std::cout<<"LOADED TXT"<<std::endl;
     }
@@ -1105,7 +1083,9 @@ void MyGLWidget::paintGL ()
         }
         glPushAttrib(GL_ALL_ATTRIB_BITS);
         glDepthRange(0.0001,1);
-        MeshDrawing<TraceMesh>::GLDrawUV(deformed_mesh,textured,colored_distortion);
+        MeshDrawing<TraceMesh>::GLDrawUV(deformed_mesh,
+                                         parafashion_tex::resolveUVTextureIndex(HasTxt,textured,texture_dress),
+                                         colored_distortion);
         //deformed_mesh.GLDrawUV(textured,colored_distortion);
         glEnable( GL_LINE_SMOOTH );
         glHint( GL_LINE_SMOOTH_HINT, GL_NICEST );

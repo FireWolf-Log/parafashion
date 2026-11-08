@@ -70,3 +70,9 @@ include_directories(include)
 
 add_executable(param apps/param.cpp)
 target_link_libraries(param woven_param igl::opengl_glfw igl::core igl::opengl_glfw_imgui)
+
+enable_testing()
+add_executable(test_texture_loading tests/test_texture_loading.cpp)
+target_include_directories(test_texture_loading PRIVATE include)
+target_link_libraries(test_texture_loading Qt5::Core Qt5::Gui)
+add_test(NAME test_texture_loading COMMAND test_texture_loading WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
