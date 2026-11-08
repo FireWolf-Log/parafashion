@@ -447,6 +447,12 @@ void TW_CALL InitByCurvature(void *)
 
 void DoSymmetrize()
 {
+    // Skip manual symmetrization if the model is explicitly set as asymmetric
+    if (!PFashion.symmetric_model)
+    {
+        std::cout << "Model is set as asymmetric ('Symmetric Model' is disabled). Skipping symmetrization." << std::endl;
+        return;
+    }
     PFashion.MakeMeshSymmetric(GPath.PickedPoints);
     //vcg::tri::io::ExporterPLY<TraceMesh>::Save(deformed_mesh,"symmetrized.ply");
 }
@@ -640,9 +646,17 @@ void TW_CALL RemoveAlongSymmetryLine(void *)
     //    RetrievePosSeqFromSelEdges(deformed_mesh,TestPosSeq);
     //vcg::tri::io::ExporterPLY<TraceMesh>::Save(deformed_mesh,"test_mesh.ply");
 
-    PFashion.RemoveOnSymmetryPathIfPossible();
-    DoParametrize();
-    DoColorByPatch();
+    // Only attempt symmetry-line seam removal if the model is symmetric
+    if (PFashion.symmetric_model)
+    {
+        PFashion.RemoveOnSymmetryPathIfPossible();
+        DoParametrize();
+        DoColorByPatch();
+    }
+    else
+    {
+        std::cout << "Model is set as asymmetric. No symmetry line to remove." << std::endl;
+    }
 
 }
 
@@ -757,6 +771,9 @@ void InitBar(QWidget *w) // AntTweakBar menu
 
     TwAddSeparator(barFashion,NULL,NULL);
 
+    // Toggle whether the model is processed with bilateral reflectional symmetry (default)
+    // or as an asymmetric 3D geometry without cutting/mirroring across X=0.
+    TwAddVarRW(barFashion,"SymmetricModel",TW_TYPE_BOOLCPP,&PFashion.symmetric_model," label='Symmetric Model'");
     TwAddButton(barFashion,"SymmetrizeDef",SymmetrizeDeformed,0,"label='Symmetrize Deformed'");
 
     TwEnumVal fieldmodes[4] = { {FMCurvatureOnly, "Curvature Only"},

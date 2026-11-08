@@ -249,6 +249,10 @@ public:
     FieldMode FMode;
     ParamMode UVMode;
 
+    // When true (default), enforces bilateral symmetry across the X=0 plane
+    // (slicing in half and mirroring). When false, treats the model as asymmetric
+    // and processes the full geometry directly without symmetrization.
+    bool symmetric_model;
     bool useFrames;
     bool match_valence;
     bool check_stress;
@@ -657,8 +661,36 @@ public:
         //PTr.ColorByPartitions();
 
         //then copy everything
-        Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
-        Symm.CopyPropertiesFromHalfDefMesh(half_def_mesh);
+        if (symmetric_model)
+        {
+            // Symmetric mode: mirror patch properties and seam selections across the symmetry plane
+            Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
+            Symm.CopyPropertiesFromHalfDefMesh(half_def_mesh);
+        }
+        else
+        {
+            // Asymmetric mode: copy traced paths, patch IDs, and edge selections directly to deformed_mesh
+            deformed_mesh.Clear();
+            vcg::tri::Append<TraceMesh,TraceMesh>::Mesh(deformed_mesh,half_def_mesh);
+            assert(half_def_mesh.face.size() == deformed_mesh.face.size());
+            assert(half_def_mesh.vert.size() == deformed_mesh.vert.size());
+            for (size_t i = 0; i < deformed_mesh.face.size(); i++)
+            {
+                deformed_mesh.face[i].Q() = half_def_mesh.face[i].Q();
+                deformed_mesh.face[i].C() = half_def_mesh.face[i].C();
+                for (size_t j = 0; j < 3; j++)
+                {
+                    if (half_def_mesh.face[i].IsFaceEdgeS(j))
+                        deformed_mesh.face[i].SetFaceEdgeS(j);
+                    else
+                        deformed_mesh.face[i].ClearFaceEdgeS(j);
+                }
+            }
+            for (size_t i = 0; i < deformed_mesh.vert.size(); i++)
+            {
+                deformed_mesh.vert[i].P() = half_def_mesh.vert[i].P();
+            }
+        }
 
 
         deformed_mesh.UpdateAttributes();
@@ -675,12 +707,30 @@ public:
 
         if (SaveStep)
         {
-            deformed_mesh.Clear();
-            half_def_mesh.Clear();
-            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(deformed_mesh,deformed_mesh_step1);
-            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(half_def_mesh,half_def_mesh_step1);
-            deformed_mesh.UpdateAttributes();
-            half_def_mesh.UpdateAttributes();
+            if (!half_def_mesh_step1.vert.empty())
+            {
+                deformed_mesh.Clear();
+                half_def_mesh.Clear();
+                vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(deformed_mesh,deformed_mesh_step1);
+                vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(half_def_mesh,half_def_mesh_step1);
+                deformed_mesh.UpdateAttributes();
+                half_def_mesh.UpdateAttributes();
+            }
+            else if (half_def_mesh.vert.empty())
+            {
+                half_def_mesh.Clear();
+                vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(half_def_mesh,deformed_mesh);
+                half_def_mesh.UpdateAttributes();
+            }
+        }
+        else
+        {
+            if (half_def_mesh.vert.empty())
+            {
+                half_def_mesh.Clear();
+                vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(half_def_mesh,deformed_mesh);
+                half_def_mesh.UpdateAttributes();
+            }
         }
 
         //compute field on half mesh
@@ -693,19 +743,40 @@ public:
         half_def_mesh.InitRPos();
 
 
-        Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
+        if (symmetric_model)
+        {
+            Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
 
-        //        //THEN REMOVE IF THEY ARE SOFT
-        //        vcg::tri::UpdateFlags<TriMeshType>::FaceClearFaceEdgeS(half_def_mesh);
-        //        half_def_mesh.UpdateSharpFeaturesFromSelection();
+            //        //THEN REMOVE IF THEY ARE SOFT
+            //        vcg::tri::UpdateFlags<TriMeshType>::FaceClearFaceEdgeS(half_def_mesh);
+            //        half_def_mesh.UpdateSharpFeaturesFromSelection();
 
-        PreProcessMesh(half_def_mesh,false);
-        Symm.CopyFromHalfDefMesh(half_def_mesh);
+            PreProcessMesh(half_def_mesh,false);
+            Symm.CopyFromHalfDefMesh(half_def_mesh);
 
-        //CHECK
-        deformed_mesh.UpdateSharpFeaturesFromSelection();
+            //CHECK
+            deformed_mesh.UpdateSharpFeaturesFromSelection();
 
-        Symm.CopyFieldFromHalfDefMesh(half_def_mesh);
+            Symm.CopyFieldFromHalfDefMesh(half_def_mesh);
+        }
+        else
+        {
+            // Asymmetric mode: apply field directly to deformed_mesh without symmetry plane reflection
+            PreProcessMesh(half_def_mesh,false);
+            deformed_mesh.Clear();
+            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(deformed_mesh,half_def_mesh);
+            deformed_mesh.UpdateAttributes();
+            deformed_mesh.UpdateSharpFeaturesFromSelection();
+
+            assert(half_def_mesh.face.size() == deformed_mesh.face.size());
+            for (size_t i = 0; i < deformed_mesh.face.size(); i++)
+            {
+                deformed_mesh.face[i].PD1() = half_def_mesh.face[i].PD1();
+                deformed_mesh.face[i].PD2() = half_def_mesh.face[i].PD2();
+            }
+            vcg::tri::CrossField<TriMeshType>::UpdateSingularByCross(deformed_mesh);
+            vcg::tri::CrossField<TriMeshType>::SetVertCrossVectorFromFace(deformed_mesh);
+        }
 
 
         if (SaveStep)
@@ -741,12 +812,24 @@ public:
     void MakeMeshSymmetric(const std::vector<std::vector<CoordType> > &PickedPoints,
                            bool SaveStep=true)
     {
+        if (symmetric_model)
+        {
+            // Symmetric mode: rigidly align, relax distortion, and slice & mirror across X=0
+            Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
+            Symm.SymmetrizeDeformedMesh();
 
-        //make the mesh symmetric
-        Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
-        Symm.SymmetrizeDeformedMesh();
+            AddSharpConstraints(PickedPoints);
+        }
+        else
+        {
+            // Asymmetric mode: preserve full mesh as working mesh without cutting or mirroring
+            half_def_mesh.Clear();
+            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(half_def_mesh,deformed_mesh);
+            half_def_mesh.UpdateAttributes();
 
-        AddSharpConstraints(PickedPoints);
+            PathUI<TriMeshType> TPath(half_def_mesh);
+            TPath.AddSharpConstraints(PickedPoints);
+        }
 
         if (SaveStep)
         {
@@ -1092,7 +1175,8 @@ public:
         TracePatch(false,writeDebug);
 
         std::cout<<"REMOVING SYMMETRY"<<std::endl;
-        if (remove_along_symmetry)
+        // Only attempt to remove seams along symmetry plane if the model is symmetric
+        if (symmetric_model && remove_along_symmetry)
             RemoveOnSymmetryPathIfPossible();
 
         std::cout<<"FINAL PARAMETRIZATION"<<std::endl;
@@ -1160,6 +1244,8 @@ public:
         reference_mesh(_reference_mesh),
         AManag(_AManag)
     {
+        // Default to symmetric model for garment compatibility
+        symmetric_model=true;
         PMode=PMAvgTJuncions;
         FMode=FMCurvature;
         PrioMode=PrioModBlend;
