@@ -63,6 +63,21 @@ Then, simply run parafashion with an obj or ply mesh as command-line argument:
 ./parafashion <Mesh>
 ```
 
+## Getting Started / User Guide
+
+### Symmetric vs. Asymmetric Models
+
+By default, Parafashion is tailored for clothing patterns that exhibit bilateral reflectional symmetry across the $X = 0$ plane (slicing the mesh in half, relaxing distortion, and mirroring).
+
+- **`Symmetric Model` Checkbox:** Located in the left control panel above `Symmetrize Deformed`.
+  - **Checked `[x]` (Default):** Enforces bilateral symmetry across $X = 0$. Best for symmetric garments (t-shirts, pants, skirts).
+  - **Unchecked `[-]`:** Treats the model as asymmetric. Essential for naturally asymmetric models (such as hands, gloves, asymmetric dresses, or accessories) so that geometry is **not** sliced or mirrored across the center plane.
+
+#### Quick Workflow for Asymmetric Models:
+1. Load your mesh: `./parafashion <path_to_mesh.obj>`
+2. In the menu, uncheck **`Symmetric Model`** (click the box until it shows `[-]`).
+3. Click **`Batch Process`** (or step through `Compute Field` $\to$ `Trace Paths` $\to$ `Parametrize Deformed`) to unwrap and flatten the full mesh.
+
 
 ## (Alternatively) using QT Creator
 
