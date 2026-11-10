@@ -65,7 +65,7 @@ file(GLOB SRC_VCGLIB src/*.cpp
 file(GLOB SRCPARAM src/param/*.cpp)
 
 add_executable(parafashion ${SRC_VCGLIB} apps/parafashion.cpp ${SRCPARAM})
-target_link_libraries(parafashion ${VCG_UI_LIBS} nlohmann_json woven_param)
+target_link_libraries(parafashion ${VCG_UI_LIBS} nlohmann_json woven_param ${CMAKE_DL_LIBS})
 include_directories(include)
 
 add_executable(param apps/param.cpp)

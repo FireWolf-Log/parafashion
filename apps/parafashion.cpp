@@ -7,6 +7,7 @@
 #include <QTextStream>
 #include <vcg/complex/algorithms/hole.h>
 #include <clocale>
+#include "xerror_limiter.h"
 
 extern std::string pathDef,pathRef,pathFrames;
 extern QGLWidget *my_window;
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
     std::setlocale(LC_NUMERIC, "en_US.UTF-8");
 
     QApplication app(argc, argv);
+    EnableXErrorLimiter();
 
     QWindow dummy;
     QString def_string = QString("GLOBAL fontscaling=%1").arg((int)dummy.devicePixelRatio());

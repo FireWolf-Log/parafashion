@@ -40,6 +40,7 @@
 
 #include <GL/glew.h>
 #include <QMouseEvent>
+#include <chrono>
 
 #include <math.h>
 #include <tracing/GL_mesh_drawing.h>
@@ -1276,37 +1277,53 @@ void MyGLWidget::paintGL ()
 
     //GLenum GlErr=glGetError();
 
-    switch(glGetError()) {
+    GLenum glErr = glGetError();
+    if (glErr != GL_NO_ERROR) {
+        static GLenum lastGlErr = GL_NO_ERROR;
+        static auto lastPrintTime = std::chrono::steady_clock::time_point{};
+        static int suppressedCount = 0;
 
-    case GL_INVALID_ENUM :
-        std::cout<<"Invalid Enum"<<std::endl;
-        assert(0);
-        break;
-    case GL_INVALID_VALUE :
-        std::cout<<"Invalid Value"<<std::endl;
-        assert(0);
-        break;
-    case GL_INVALID_OPERATION :
-        std::cout<<"Invalid Operation"<<std::endl;
-        assert(0);
-        break;
-    case GL_INVALID_FRAMEBUFFER_OPERATION :
-        std::cout<<"Invalid FB Operation"<<std::endl;
-        assert(0);
-        break;
-    case GL_OUT_OF_MEMORY :
-        std::cout<<"Out of Memory"<<std::endl;
-        assert(0);
-        break;
-    case GL_STACK_UNDERFLOW :
-        std::cout<<"Stuck Underflow"<<std::endl;
-        assert(0);
-        break;
-    case GL_STACK_OVERFLOW :
-        std::cout<<"Stuck Overflow"<<std::endl;
-        assert(0);
-        break;
-        //default :
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastPrintTime).count();
+
+        if (glErr != lastGlErr || elapsed >= 5) {
+            const char* errStr = "Unknown Error";
+            switch(glErr) {
+            case GL_INVALID_ENUM :
+                errStr = "Invalid Enum";
+                break;
+            case GL_INVALID_VALUE :
+                errStr = "Invalid Value";
+                break;
+            case GL_INVALID_OPERATION :
+                errStr = "Invalid Operation";
+                break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION :
+                errStr = "Invalid FB Operation";
+                break;
+            case GL_OUT_OF_MEMORY :
+                errStr = "Out of Memory";
+                break;
+            case GL_STACK_UNDERFLOW :
+                errStr = "Stuck Underflow";
+                break;
+            case GL_STACK_OVERFLOW :
+                errStr = "Stuck Overflow";
+                break;
+            }
+
+            if (suppressedCount > 0 && glErr == lastGlErr) {
+                std::cout << errStr << " (repeated " << suppressedCount << " times)" << std::endl;
+            } else {
+                std::cout << errStr << std::endl;
+            }
+
+            lastGlErr = glErr;
+            lastPrintTime = now;
+            suppressedCount = 0;
+        } else {
+            suppressedCount++;
+        }
     }
 
     //assert(glGetError()==GL_NO_ERROR);
