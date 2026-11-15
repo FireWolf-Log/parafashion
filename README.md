@@ -65,6 +65,24 @@ Then, simply run parafashion with an obj or ply mesh as command-line argument:
 
 ## Getting Started / User Guide
 
+## Running the container
+
+On macOS:
+
+if using `colima` start it first:
+```
+colima start
+```
+
+```
+xhost +localhost && docker compose run --rm parafashion
+```
+
+Stop `colima` if required:
+```
+colima stop
+```s
+
 ### Symmetric vs. Asymmetric Models
 
 By default, Parafashion is tailored for clothing patterns that exhibit bilateral reflectional symmetry across the $X = 0$ plane (slicing the mesh in half, relaxing distortion, and mirroring).
