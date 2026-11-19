@@ -1,0 +1,3 @@
+newmtl fabric
+Kd 1 1 1
+map_Kd fabric.png
