@@ -97,6 +97,26 @@ By default, Parafashion is tailored for clothing patterns that exhibit bilateral
 3. Click **`Batch Process`** (or step through `Compute Field` $\to$ `Trace Paths` $\to$ `Parametrize Deformed`) to unwrap and flatten the full mesh.
 
 
+### Textured patterns
+
+Open a model with texture UVs and a source image. Parafashion uses the existing
+`txt.png` convention or the diffuse image (`map_Kd`) in the OBJ's MTL file.
+The texture workflow currently uses one image per model.
+
+1. Turn on **Textured** to see the original image on the 3D garment.
+2. Run **Batch Process**. With **Draw UV Mesh** enabled, the 2D pieces show
+   the same surface colors as the 3D garment.
+3. Use **Generate SVG** (or **Save Data**) to save the pattern as an SVG
+   with embedded texture and as a PNG. The SVG keeps the cut lines
+   and seam labels as vectors.
+
+The flattened coordinates determine the shape and placement of the pieces.
+The source texture coordinates determine their colors. After a symmetry cut
+or remeshing, the source coordinates are transferred from the closest part of
+the original surface. Fine texture details near source UV seams may shift if
+the operation changes the triangulation. A mesh with no source UVs, such as
+the bundled `data/wet/wet.obj`, still works with the usual patch colors.
+
 ## (Alternatively) using QT Creator
 
 Open the .pro file, all the path in the .pri should be already ok.

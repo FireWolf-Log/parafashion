@@ -13,7 +13,8 @@
 //#include "./lib/CavalierContours/include/cavc/polylineoffset.hpp"
 //#include <vcg/complex/algorithms/update/flag.h>
 #include <QSvgRenderer>
-#include <QIcon>
+#include <QPainter>
+#include "pattern_texture.h"
 
 template <class TriMeshType>
 class SvgExporter
@@ -230,7 +231,9 @@ public:
                                  const char *pathSVG,
                                  const char *pathPNG,
                                  QImage &SVGTxt,
-                                 float scaleVal=1000,
+                                 float scaleVal,
+                                 const parafashion_tex::SourceUVs &sourceUVs,
+                                 const QImage &sourceTexture,
                                  float penwidth=2,
                                  float boundSize=15,
                                  float fontsize=7)
@@ -335,19 +338,21 @@ public:
         Outline2Dumper::dumpOutline2VecSVG(pathSVG,outline2VecVec,trVec,Label,trText,LabelRad,pp);
 
 
-        SVGTxt = QIcon(pathSVG).pixmap(QSize(4000,4000)).toImage();
-        for (size_t x=0;x<SVGTxt.width()*SVGTxt.height();x++)
-            {
-                size_t baseI=x*4;
-                size_t alpha=baseI+3;
-                if (SVGTxt.bits()[alpha]==0)
-                {
-                    SVGTxt.bits()[baseI]=255;
-                    SVGTxt.bits()[baseI+1]=255;
-                    SVGTxt.bits()[baseI+2]=255;
-                    SVGTxt.bits()[baseI+3]=255;
-                }
-            }
+        const QSize canvas(pp.width, pp.height);
+        if (!sourceUVs.empty() &&
+            !parafashion_tex::embedPatternTexture(pathSVG, mesh, sourceUVs, sourceTexture,
+                                                scaleVal, QPointF(shift.X(), shift.Y()), canvas))
+            std::cerr << "Could not embed the pattern texture in " << pathSVG << std::endl;
+
+        QSvgRenderer renderer(QString::fromLocal8Bit(pathSVG));
+        QSize rasterSize = canvas;
+        if (rasterSize.width() > 4000 || rasterSize.height() > 4000)
+            rasterSize.scale(QSize(4000, 4000), Qt::KeepAspectRatio);
+        SVGTxt = QImage(rasterSize, QImage::Format_ARGB32);
+        SVGTxt.fill(Qt::white);
+        QPainter painter(&SVGTxt);
+        renderer.render(&painter);
+        painter.end();
 
         // Save, image format based on file extension
         SVGTxt.save(pathPNG);

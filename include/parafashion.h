@@ -253,6 +253,7 @@ public:
     // (slicing in half and mirroring). When false, treats the model as asymmetric
     // and processes the full geometry directly without symmetrization.
     bool symmetric_model;
+    TriMeshType *texture_projection_source = nullptr;
     bool useFrames;
     bool match_valence;
     bool check_stress;
@@ -300,6 +301,12 @@ public:
         reference_mesh.InitRPos();
         deformed_mesh.UpdateAttributes();
         reference_mesh.UpdateAttributes();
+        if (texture_projection_source)
+        {
+            texture_projection_source->Clear();
+            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(*texture_projection_source, deformed_mesh);
+            texture_projection_source->UpdateAttributes();
+        }
     }
 
     template <class MeshType>
@@ -816,7 +823,7 @@ public:
         {
             // Symmetric mode: rigidly align, relax distortion, and slice & mirror across X=0
             Symmetrizer<TriMeshType> Symm(deformed_mesh,reference_mesh);
-            Symm.SymmetrizeDeformedMesh();
+            Symm.SymmetrizeDeformedMesh(SaveStep ? nullptr : texture_projection_source);
 
             AddSharpConstraints(PickedPoints);
         }

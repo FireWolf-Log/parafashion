@@ -390,7 +390,7 @@ public:
 //            SymmetrizeDeformationStep(DefField);
 //    }
 
-    void SymmetrizeDeformedMesh()
+    void SymmetrizeDeformedMesh(TriMeshType *textureSource = nullptr)
     {
         SymmetrizeDeformation<TriMeshType>::RigidAlign(reference_mesh,deformed_mesh);
         //RigidAlign();
@@ -401,6 +401,14 @@ public:
 //        vcg::tri::io::ExporterPLY<TriMeshType>::Save(deformed_mesh,"test0.ply");
         SymmetrizeDeformation<TriMeshType>::SymmetrizeDistortion(reference_mesh,deformed_mesh,50);
 //        vcg::tri::io::ExporterPLY<TriMeshType>::Save(deformed_mesh,"test1.ply");
+
+        // Keep both sides and their original UVs in the aligned coordinate system.
+        if (textureSource)
+        {
+            textureSource->Clear();
+            vcg::tri::Append<TriMeshType,TriMeshType>::Mesh(*textureSource, deformed_mesh);
+            textureSource->UpdateAttributes();
+        }
 
         //then apply the deformation
         SymmetrizeMesh(deformed_mesh,SymmPlane());

@@ -47,6 +47,7 @@
 #include <tracing/mesh_type.h>
 #include "myglwidget.h"
 #include "texture_gl_utils.h"
+#include "pattern_texture.h"
 #include <wrap/qt/trackball.h>
 #include <wrap/qt/anttweakbarMapper.h>
 #include <wrap/gl/gl_field.h>
@@ -119,6 +120,20 @@ QTimer *timerRot;
 QTimer *timerAnim;
 
 bool HasTxt=false;
+QImage txt_image;
+static TraceMesh textureSource;
+static parafashion_tex::SourceUVs sourceUVs;
+
+static void RefreshSourceUVs()
+{
+    if (HasTxt)
+    {
+        sourceUVs = parafashion_tex::projectSourceUVs(textureSource, deformed_mesh);
+        if (sourceUVs.empty())
+            std::cerr << "Could not map the source texture to the processed mesh." << std::endl;
+    }
+}
+
 
 PathGL<TraceMesh> GPath;
 
@@ -455,6 +470,9 @@ void DoSymmetrize()
         return;
     }
     PFashion.MakeMeshSymmetric(GPath.PickedPoints);
+    RefreshSourceUVs();
+    parametrized = false;
+    HasLayoutTxt = false;
     //vcg::tri::io::ExporterPLY<TraceMesh>::Save(deformed_mesh,"symmetrized.ply");
 }
 
@@ -473,7 +491,10 @@ void DoParametrize()
 {
 
     PFashion.DoParametrize();
+    RefreshSourceUVs();
+    HasLayoutTxt = false;
     PFashion.GetUVSeamsPolylines(UVPolyL,Color,Dots,ColorDots);
+    parametrized=true;
 }
 
 void TW_CALL Parametrize(void *)
@@ -485,6 +506,9 @@ void TW_CALL Parametrize(void *)
 void DoTracePath()
 {
     PFashion.TracePatch();
+    RefreshSourceUVs();
+    parametrized = false;
+    HasLayoutTxt = false;
     if (hasFrames)
     {
         AManager.UpdateProjectionBasis();
@@ -528,9 +552,7 @@ void DoGenerateSVG(std::string ProjM)
                                              pathPatch.c_str(),
                                              pathPatchPNG.c_str(),
                                              SVGTxt,
-                                             scale);//,4,
-                                             //PFashion.param_boundary*scale,
-                                             //PFashion.param_boundary*scale*0.75);
+                                             scale, sourceUVs, txt_image);
     //prepare the texure
     HasLayoutTxt=true;
     has_to_update_layout=true;
@@ -626,6 +648,9 @@ void TW_CALL SaveData(void *)
 void DoSmoothField()
 {
     PFashion.ComputeField();
+    RefreshSourceUVs();
+    parametrized = false;
+    HasLayoutTxt = false;
     if (hasFrames)
     {
         AManager.UpdateProjectionBasis();
@@ -680,6 +705,8 @@ void DoBatchProcess()
 {
     std::vector<bool> Soft(GPath.PickedPoints.size(),true);
     PFashion.BatchProcess(GPath.PickedPoints,AManager);//,Soft);
+    RefreshSourceUVs();
+    HasLayoutTxt = false;
     if (hasFrames)
     {
         AManager.UpdateProjectionBasis();
@@ -892,7 +919,6 @@ void MyGLWidget::UpdateRot()
     update();
 }
 
-QImage txt_image;
 //GLuint texture_dress;
 
 //QOpenGLTexture * texture = nullptr;
@@ -942,9 +968,20 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     //    texture = LoadDDS(textureFile);
     //	Q_ASSERT(texture != nullptr);
     txt_image=pathTxt.empty() ? QImage() : QImage(QString::fromStdString(pathTxt));
-    HasTxt=(!txt_image.isNull());
+    HasTxt = !txt_image.isNull() && parafashion_tex::loadSourceUVs(pathDef, deformed_mesh, sourceUVs);
     if (HasTxt)
-        std::cout<<"Texture Loaded "<<pathTxt<<std::endl;
+    {
+        vcg::tri::Append<TraceMesh,TraceMesh>::Mesh(textureSource, deformed_mesh);
+        textureSource.UpdateAttributes();
+        PFashion.texture_projection_source = &textureSource;
+        // When the same mesh is used as reference, the overlapping reference
+        // surface would otherwise obscure the source texture before processing.
+        if (pathRef == pathDef)
+            drawRefMesh = false;
+        std::cout << "Texture loaded " << pathTxt << std::endl;
+    }
+    else if (!txt_image.isNull())
+        std::cout << "Texture image found, but the mesh has no usable source UV coordinates." << std::endl;
 
     hasFrames=false;
     hasDoubleClick=false;
@@ -1085,6 +1122,8 @@ void MyGLWidget::paintGL ()
     glPushMatrix();
 
     bool draw_uv_and_3D=(draw3D && drawParam && parametrized);
+    const bool showSourceTexture = HasTxt && textured && !colored_distortion && texture_dress != 0
+                                  && !sourceUVs.empty() && sourceUVs.size() == deformed_mesh.face.size();
 
     if (colored_distortion)
         GLDrawLegenda();
@@ -1101,10 +1140,10 @@ void MyGLWidget::paintGL ()
         }
         glPushAttrib(GL_ALL_ATTRIB_BITS);
         glDepthRange(0.0001,1);
-        MeshDrawing<TraceMesh>::GLDrawUV(deformed_mesh,
-                                         parafashion_tex::resolveUVTextureIndex(HasTxt,textured,texture_dress),
-                                         colored_distortion);
-        //deformed_mesh.GLDrawUV(textured,colored_distortion);
+        if (showSourceTexture)
+            parafashion_tex::drawTexturedPattern(deformed_mesh, sourceUVs, texture_dress);
+        else
+            MeshDrawing<TraceMesh>::GLDrawUV(deformed_mesh, -1, colored_distortion);
         glEnable( GL_LINE_SMOOTH );
         glHint( GL_LINE_SMOOTH_HINT, GL_NICEST );
         glDepthRange(0,0.999);
@@ -1182,24 +1221,29 @@ void MyGLWidget::paintGL ()
         glPushAttrib(GL_ALL_ATTRIB_BITS);
         //glPushMatrix();
 
-        if ((HasTxt)&&(textured))
+        glWrap.m = &deformed_mesh;
+        if (showSourceTexture)
         {
             glActiveTexture(GL_TEXTURE0);
-            glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, texture_dress);
+            glColor4ub(255, 255, 255, 255);
+
+            // GlTrimesh reads wedge UVs. Expand them back to pattern coordinates
+            // immediately after drawing so the solver and export still see the layout.
+            for (size_t i = 0; i < deformed_mesh.face.size(); ++i)
+                for (int j = 0; j < 3; ++j)
+                    std::swap(deformed_mesh.face[i].WT(j).P(), sourceUVs[i][j]);
+            glWrap.Draw(drawmode, vcg::GLW::CMNone, vcg::GLW::TMPerWedge);
+            for (size_t i = 0; i < deformed_mesh.face.size(); ++i)
+                for (int j = 0; j < 3; ++j)
+                    std::swap(deformed_mesh.face[i].WT(j).P(), sourceUVs[i][j]);
         }
         else
+        {
             glDisable(GL_TEXTURE_2D);
-
-        vcg::GLW::ColorMode CM=vcg::GLW::CMPerFace;
-        if (colored_distortion)
-            CM=vcg::GLW::CMPerVert;
-
-        glWrap.m=&deformed_mesh;
-        if ((textured)&&(HasTxt))
-            glWrap.Draw(drawmode,CM,vcg::GLW::TMPerWedge);
-        else
-            glWrap.Draw(drawmode,CM,vcg::GLW::TMNone);
+            glWrap.Draw(drawmode, colored_distortion ? vcg::GLW::CMPerVert : vcg::GLW::CMPerFace,
+                        vcg::GLW::TMNone);
+        }
 
         glDisable(GL_TEXTURE_2D);
 
